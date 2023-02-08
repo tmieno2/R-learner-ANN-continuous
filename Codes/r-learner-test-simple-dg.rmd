@@ -1,0 +1,151 @@
+# Objective
+
+# Preparation
+
+## Packages and functions
+```{r}
+#--- packages ---#
+library(tidyverse)
+library(data.table)
+library(mgcv)
+library(spatialsample)
+library(parallel)
+library(sf)
+library(grf)
+library(ranger)
+library(xgboost)
+library(mgcv)
+library(here)
+library(reticulate)
+
+#--- R functions ---#
+here("Codes/functions/R") %>%
+  fs::dir_ls(., full.names = TRUE) %>%
+  lapply(source)
+```
+
+# Data generating process 1
+
+$$
+\begin{aligned}
+Y = x_1 \cdot T + \mu
+\end{aligned}
+$$
+
+
+## Generate data
+
+```{r}
+set.seed(58734)
+
+N <- 3000
+
+data <-
+  data.table(
+    x1 = runif(N),
+    x2 = runif(N),
+    x3 = runif(N),
+    x4 = runif(N),
+    x5 = runif(N),
+    mu = rnorm(N)
+  ) %>%
+  .[, T := 2 * rnorm(N)] %>%
+  .[, Y_det := x1 * T^2] %>%
+  .[, Y := Y_det + mu] %>%
+  .[abs(T) < 4, ] %>%
+  .[, id := 1:.N]
+```
+
+
+## Visualization
+
+```{r}
+ggplot(data) +
+  geom_point(aes(y = Y, x = T))
+```
+ 
+## Prepare 2nd stage and evaluation data
+
+```{r}
+data_ss <-
+  prepare_2nd_stage_data(
+    t_formula_fs = formula(Y ~ s(T, k = 4, m = 2)),
+    model_y = predict_brf_c,
+    model_t = predict_brf_c,
+    x_var = c("x1", "x2", "x3", "x4", "x5"),
+    id_var = "id",
+    data = data
+  )
+
+eval_data <- prepare_eval_data(t_formula_fs, data)
+```
+
+## Write datasets
+
+```{r}
+write_csv(data, here::here("Data/DG1_raw.csv"))
+write_csv(data_ss, here::here("Data/DG1_ss.csv"))
+write_csv(eval_data, here::here("Data/DG1_eval_data.csv"))
+```
+
+# Data generating process 2
+
+$$
+\begin{aligned}
+Y = (x_1 + x_2^2) \cdot log(T) + \mu
+\end{aligned}
+$$
+
+## Generate data
+
+```{r}
+set.seed(2489354)
+
+N <- 5000
+
+data <-
+  data.table(
+    x1 = runif(N),
+    x2 = runif(N),
+    x3 = runif(N),
+    x4 = runif(N),
+    x5 = runif(N),
+    mu = rnorm(N) * 0.3
+  ) %>%
+  .[, T := 5 * runif(N) + 1] %>%
+  .[, Y_det := (x1 + x2^2) * log(T)] %>%
+  .[, Y := Y_det + mu] %>%
+  .[, id := 1:.N]
+```
+
+## Visualization
+
+```{r}
+ggplot(data) +
+  geom_point(aes(y = Y, x = T))
+```
+
+ 
+## Prepare 2nd stage and evaluation data
+
+```{r}
+data_ss <-
+  prepare_2nd_stage_data(
+    t_formula_fs = formula(Y ~ s(T, k = 4, m = 2)),
+    model_y = predict_brf_c,
+    model_t = predict_brf_c,
+    x_var = c("x1", "x2", "x3", "x4", "x5"),
+    id_var = "id",
+    data = data
+  )
+
+eval_data <- prepare_eval_data(t_formula_fs, data)
+```
+
+## Write datasets
+
+```{r}
+write_csv(data, here::here("Data/DG2_raw.csv"))
+write_csv(data_ss, here::here("Data/DG2_ss.csv"))
+write_csv(eval_data, here::here("Data/DG2_eval_data.csv"))
+```
